@@ -51,9 +51,13 @@ function App() {
     value: ''
   })
   const [taskType, setTaskType] = useState<'deadline' | 'scheduled' | 'ongoing'>('ongoing')
+  const [subTaskType, setSubTaskType] = useState<'deadline' | 'scheduled' | 'ongoing'>('ongoing')
   const [startTime, setStartTime] = useState('')
   const [endTime, setEndTime] = useState('')
   const [deadline, setDeadline] = useState('')
+  const [subTaskStartTime, setSubTaskStartTime] = useState('')
+  const [subTaskEndTime, setSubTaskEndTime] = useState('')
+  const [subTaskDeadline, setSubTaskDeadline] = useState('')
   const [editingTodo, setEditingTodo] = useState<EditingTodoState>({
     todoId: null,
     text: '',
@@ -68,15 +72,25 @@ function App() {
   }, [todos])
 
   useEffect(() => {
-    const handleClickOutside = () => {
-      setContextMenu(prev => ({ ...prev, visible: false }))
-      if (!subTaskInput.value.trim()) {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      const isContextMenu = target.closest('.context-menu');
+      const isSubTaskInput = target.closest('.sub-task-input');
+
+      if (!isContextMenu) {
+        setContextMenu(prev => ({ ...prev, visible: false }));
+      }
+
+      if (!isSubTaskInput && !subTaskInput.value.trim()) {
         setSubTaskInput({ parentId: null, value: '' })
+      setSubTaskStartTime('')
+      setSubTaskEndTime('')
+      setSubTaskDeadline('');
       }
     }
-    document.addEventListener('click', handleClickOutside)
-    return () => document.removeEventListener('click', handleClickOutside)
-  }, [subTaskInput.value])
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [subTaskInput.value]);
 
   const handleContextMenu = (e: React.MouseEvent, todoId: number) => {
     e.preventDefault()
@@ -111,21 +125,44 @@ function App() {
   }
 
   const startAddingSubTask = (parentId: number) => {
-    setSubTaskInput({ parentId, value: '' })
+    setContextMenu({ visible: false, x: 0, y: 0, todoId: null });
+    const parentTodo = todos.find(todo => todo.id === parentId);
+    if (parentTodo) {
+      setSubTaskType(parentTodo.taskType);
+      if (parentTodo.taskType === 'scheduled') {
+        setSubTaskStartTime(parentTodo.startTime || '');
+        setSubTaskEndTime(parentTodo.endTime || '');
+      } else if (parentTodo.taskType === 'deadline') {
+        setSubTaskDeadline(parentTodo.deadline || '');
+      }
+      // 确保父任务处于展开状态
+      if (!parentTodo.expanded) {
+        setTodos(prevTodos => prevTodos.map(todo => 
+          todo.id === parentId ? { ...todo, expanded: true } : todo
+        ));
+      }
+    }
+    setSubTaskInput({ parentId, value: '' });
   }
 
   const addSubTask = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && subTaskInput.value.trim() && subTaskInput.parentId) {
+// 由于未使用 parentTodo，可以删除这行代码
       const newTodo: Todo = {
         id: Date.now(),
         text: subTaskInput.value.trim(),
         completed: false,
         parentId: subTaskInput.parentId,
-        taskType: 'ongoing',
-        startTime: new Date().toISOString()
+        taskType: subTaskType,
+        startTime: subTaskType === 'ongoing' ? new Date().toISOString() : subTaskType === 'scheduled' ? subTaskStartTime : undefined,
+        endTime: subTaskType === 'scheduled' ? subTaskEndTime : undefined,
+        deadline: subTaskType === 'deadline' ? subTaskDeadline : undefined
       }
       setTodos(prevTodos => [...prevTodos, newTodo])
       setSubTaskInput({ parentId: null, value: '' })
+      setSubTaskStartTime('')
+      setSubTaskEndTime('')
+      setSubTaskDeadline('')
     }
   }
 
@@ -284,16 +321,52 @@ function App() {
           <div>
             {renderTodoTree(todo.id, level + 1)}
             {subTaskInput.parentId === todo.id && (
-              <div className="flex items-center gap-2 p-2" style={{ paddingLeft: `${(level + 1) * 32 + 8}px` }}>
-                <input
-                  type="text"
-                  value={subTaskInput.value}
-                  onChange={(e) => setSubTaskInput(prev => ({ ...prev, value: e.target.value }))}
-                  onKeyDown={addSubTask}
-                  placeholder="添加子任务..."
-                  className="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
-                  autoFocus
-                />
+              <div className="space-y-2 sub-task-input" style={{ paddingLeft: `${(level + 1) * 32 + 8}px` }}>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={subTaskType}
+                    onChange={(e) => setSubTaskType(e.target.value as 'deadline' | 'scheduled' | 'ongoing')}
+                    className="w-48 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  >
+                    <option value="ongoing">长期任务 ♾️</option>
+                    <option value="scheduled">固定时间任务 📅</option>
+                    <option value="deadline">最终期限任务 ⏳</option>
+                  </select>
+                  <input
+                    type="text"
+                    value={subTaskInput.value}
+                    onChange={(e) => setSubTaskInput(prev => ({ ...prev, value: e.target.value }))}
+                    onKeyDown={addSubTask}
+                    placeholder="添加子任务..."
+                    className="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    autoFocus
+                  />
+                </div>
+                {subTaskType === 'scheduled' && (
+                  <div className="flex gap-2">
+                    <input
+                      type="datetime-local"
+                      value={subTaskStartTime}
+                      onChange={(e) => setSubTaskStartTime(e.target.value)}
+                      className="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    />
+                    <span className="flex items-center">至</span>
+                    <input
+                      type="datetime-local"
+                      value={subTaskEndTime}
+                      onChange={(e) => setSubTaskEndTime(e.target.value)}
+                      className="flex-1 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    />
+                  </div>
+                )}
+                {subTaskType === 'deadline' && (
+                  <input
+                    type="datetime-local"
+                    value={subTaskDeadline}
+                    onChange={(e) => setSubTaskDeadline(e.target.value)}
+                    className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  />
+                )}
               </div>
             )}
           </div>
@@ -326,6 +399,15 @@ function App() {
         
         <form onSubmit={addTodo} className="space-y-4 mb-6">
           <div className="flex gap-2">
+            <select
+              value={taskType}
+              onChange={(e) => setTaskType(e.target.value as 'deadline' | 'scheduled' | 'ongoing')}
+              className="w-48 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
+            >
+              <option value="ongoing">长期任务 ♾️</option>
+              <option value="scheduled">固定时间任务 📅</option>
+              <option value="deadline">最终期限任务 ⏳</option>
+            </select>
             <input
               type="text"
               value={input}
@@ -342,16 +424,6 @@ function App() {
           </div>
           
           <div className="flex gap-4">
-            <select
-              value={taskType}
-              onChange={(e) => setTaskType(e.target.value as 'deadline' | 'scheduled' | 'ongoing')}
-              className="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400"
-            >
-              <option value="ongoing">长期任务 ♾️</option>
-              <option value="scheduled">固定时间任务 📅</option>
-              <option value="deadline">最终期限任务 ⏳</option>
-            </select>
-
             {taskType === 'scheduled' && (
               <div className="flex gap-2">
                 <input
@@ -390,7 +462,7 @@ function App() {
 
         {contextMenu.visible && (
           <div
-            className="fixed bg-white rounded-lg shadow-lg py-2 z-50"
+            className="fixed bg-white rounded-lg shadow-lg py-2 z-50 context-menu"
             style={{ top: contextMenu.y, left: contextMenu.x }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -493,32 +565,72 @@ function App() {
 
 export default App
 
-  // 导出功能 - 复制到剪贴板
   const exportTodos = () => {
     const exportData = JSON.stringify(window.localStorage.getItem('todos') ? JSON.parse(window.localStorage.getItem('todos')!) : [], null, 2)
-    navigator.clipboard.writeText(exportData).then(() => {
-      alert('数据已复制到剪贴板')
-    }).catch(error => {
-      console.error('复制失败:', error)
-      alert('复制失败，请重试')
-    })
-  }
-
-  // 导入功能 - 从剪贴板粘贴
-  const handleImportTodos = () => {
-    const textarea = document.createElement('textarea')
-    textarea.className = 'fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-96 h-48 p-4 border rounded-lg shadow-lg'
-    textarea.placeholder = '请粘贴导出的JSON数据...'
-    
     const overlay = document.createElement('div')
     overlay.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50'
     
     const container = document.createElement('div')
-    container.className = 'bg-white rounded-lg p-6 space-y-4'
+    container.className = 'bg-white rounded-lg p-6 space-y-4 relative'
+    
+    const closeButton = document.createElement('button')
+    closeButton.className = 'absolute top-2 right-2 text-gray-500 hover:text-gray-700'
+    closeButton.innerHTML = '✕'
+    closeButton.onclick = () => document.body.removeChild(overlay)
     
     const title = document.createElement('h2')
-    title.className = 'text-xl font-bold'
+    title.className = 'text-xl font-bold mb-4'
+    title.textContent = '导出数据'
+    
+    const textarea = document.createElement('textarea')
+    textarea.className = 'w-full h-48 p-4 border rounded-lg font-mono text-sm'
+    textarea.value = exportData
+    textarea.readOnly = true
+    
+    const copyButton = document.createElement('button')
+    copyButton.className = 'px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600'
+    copyButton.textContent = '复制到剪贴板'
+    copyButton.onclick = () => {
+      navigator.clipboard.writeText(exportData).then(() => {
+        copyButton.textContent = '复制成功!'
+        copyButton.className = 'px-4 py-2 bg-green-500 text-white rounded-lg'
+        setTimeout(() => {
+          copyButton.textContent = '复制到剪贴板'
+          copyButton.className = 'px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600'
+        }, 2000)
+      }).catch(error => {
+        console.error('复制失败:', error)
+        alert('复制失败，请重试')
+      })
+    }
+    
+    container.appendChild(closeButton)
+    container.appendChild(title)
+    container.appendChild(textarea)
+    container.appendChild(copyButton)
+    overlay.appendChild(container)
+    document.body.appendChild(overlay)
+  }
+
+  const handleImportTodos = () => {
+    const overlay = document.createElement('div')
+    overlay.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50'
+    
+    const container = document.createElement('div')
+    container.className = 'bg-white rounded-lg p-6 space-y-4 relative'
+    
+    const closeButton = document.createElement('button')
+    closeButton.className = 'absolute top-2 right-2 text-gray-500 hover:text-gray-700'
+    closeButton.innerHTML = '✕'
+    closeButton.onclick = () => document.body.removeChild(overlay)
+    
+    const title = document.createElement('h2')
+    title.className = 'text-xl font-bold mb-4'
     title.textContent = '导入数据'
+    
+    const textarea = document.createElement('textarea')
+    textarea.className = 'w-full h-48 p-4 border rounded-lg font-mono text-sm'
+    textarea.placeholder = '请粘贴导出的JSON数据...'
     
     const buttonContainer = document.createElement('div')
     buttonContainer.className = 'flex justify-end gap-2'
@@ -544,6 +656,7 @@ export default App
     
     buttonContainer.appendChild(cancelButton)
     buttonContainer.appendChild(importButton)
+    container.appendChild(closeButton)
     container.appendChild(title)
     container.appendChild(textarea)
     container.appendChild(buttonContainer)
