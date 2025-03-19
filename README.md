@@ -1,54 +1,130 @@
-# React + TypeScript + Vite
+# 待办事项管理系统
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+## 项目概述
 
-Currently, two official plugins are available:
+这是一个基于React + TypeScript + Vite构建的现代化待办事项管理系统，具有丰富的功能和直观的用户界面。系统支持多种任务类型、子任务管理、时间筛选、列表/时间轴视图切换等功能，帮助用户高效地管理和跟踪各类任务。
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## 技术栈
 
-## Expanding the ESLint configuration
+- **前端框架**: React
+- **开发语言**: TypeScript
+- **构建工具**: Vite
+- **样式框架**: TailwindCSS
+- **图标库**: Heroicons
+- **数据存储**: localStorage
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## 系统架构
 
-```js
-export default tseslint.config({
-  extends: [
-    // Remove ...tseslint.configs.recommended and replace with this
-    ...tseslint.configs.recommendedTypeChecked,
-    // Alternatively, use this for stricter rules
-    ...tseslint.configs.strictTypeChecked,
-    // Optionally, add this for stylistic rules
-    ...tseslint.configs.stylisticTypeChecked,
-  ],
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-})
-```
+### 数据模型
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+系统的核心数据模型是`Todo`，包含以下主要属性：
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+- **id**: 任务唯一标识符
+- **text**: 任务内容
+- **completed**: 完成状态
+- **parentId**: 父任务ID，顶级任务为null
+- **expanded**: 是否展开子任务
+- **taskType**: 任务类型（deadline/scheduled/ongoing/unscheduled）
+- **startTime/endTime/deadline**: 根据任务类型存储相应的时间信息
 
-export default tseslint.config({
-  plugins: {
-    // Add the react-x and react-dom plugins
-    'react-x': reactX,
-    'react-dom': reactDom,
-  },
-  rules: {
-    // other rules...
-    // Enable its recommended typescript rules
-    ...reactX.configs['recommended-typescript'].rules,
-    ...reactDom.configs.recommended.rules,
-  },
-})
-```
+### 功能模块
+
+#### 1. 任务管理
+
+- **任务创建**: 支持创建不同类型的任务（长期任务、待安排任务、固定时间任务、最终期限任务）
+- **任务编辑**: 可修改任务内容、类型和时间信息
+- **任务删除**: 删除任务及其所有子任务
+- **任务状态切换**: 标记任务为完成/未完成
+
+#### 2. 子任务管理
+
+- **子任务创建**: 为任务添加子任务，形成任务树结构
+- **子任务展开/折叠**: 控制子任务的显示状态
+- **子任务继承**: 子任务可继承父任务的类型和时间属性
+
+#### 3. 日期筛选
+
+- **日期导航**: 提供前后7天的日期导航栏
+- **任务筛选**: 根据选定日期筛选显示相关任务
+- **任务类型筛选**: 不同类型任务有不同的显示规则（如长期任务始终显示）
+
+#### 4. 视图切换
+
+- **列表视图**: 树形结构展示任务及子任务
+- **时间轴视图**: 按时间顺序在时间轴上展示任务，直观显示任务时间分布
+
+#### 5. 数据导入/导出
+
+- **数据导出**: 将任务数据导出为JSON格式
+- **数据导入**: 从JSON格式导入任务数据
+
+### 状态管理
+
+系统使用React的useState和useEffect钩子管理状态：
+
+- **todos**: 存储所有任务数据，并在变化时自动保存到localStorage
+- **selectedDate**: 当前选中的日期，用于筛选任务
+- **viewMode**: 当前视图模式（列表/时间轴）
+- **contextMenu**: 右键菜单状态
+- **editingTodo**: 当前正在编辑的任务
+
+## 业务逻辑流程
+
+### 任务创建流程
+
+1. 用户选择任务类型（长期/待安排/固定时间/最终期限）
+2. 输入任务内容
+3. 根据任务类型，可能需要设置相应的时间信息
+4. 提交表单，创建新任务
+5. 任务数据保存到状态和localStorage
+
+### 任务筛选流程
+
+1. 用户从日期导航栏选择日期
+2. 系统根据选定日期筛选任务：
+   - 长期任务始终显示
+   - 固定时间任务在时间范围与选定日期有交集时显示
+   - 最终期限任务在截止日期为选定日期时显示
+
+### 子任务管理流程
+
+1. 用户右键点击任务，选择"添加子任务"
+2. 系统准备子任务输入界面，默认继承父任务类型和时间属性
+3. 用户输入子任务内容和相关信息
+4. 创建子任务，并确保父任务处于展开状态
+
+### 时间轴视图逻辑
+
+1. 系统将一天24小时作为时间轴基准
+2. 固定时间任务根据开始和结束时间在时间轴上占据相应位置
+3. 最终期限任务在截止时间点显示为垂直线
+4. 系统自动计算任务层级，避免任务在时间轴上重叠
+
+## 使用指南
+
+### 创建任务
+
+1. 选择任务类型（下拉菜单）
+2. 输入任务内容
+3. 根据任务类型，设置相应的时间信息
+4. 点击添加按钮创建任务
+
+### 管理子任务
+
+1. 右键点击任务，选择"添加子任务"
+2. 输入子任务内容和相关信息
+3. 按Enter键确认添加
+
+### 编辑任务
+
+1. 右键点击任务，选择"编辑任务"
+2. 修改任务内容、类型或时间信息
+3. 点击保存按钮确认修改
+
+### 切换视图
+
+点击界面右上角的"切换时间轴视图"或"切换列表视图"按钮
+
+### 导入/导出数据
+
+点击界面右上角的"导入"或"导出"按钮，按照提示操作
